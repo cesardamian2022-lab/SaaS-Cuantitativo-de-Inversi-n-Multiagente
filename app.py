@@ -1,32 +1,15 @@
 import os
-
-
-
 import streamlit as st
 from quant_engine import ejecutar_motor_cuantitativo
-
-
-
-# Dentro de tu app.py cuando el usuario presiona ejecutar:
 from news_analyzer import analizar_impacto_macro_sectorial
 
-
-# Obtención de la clave
-api_key = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY", "")
-
+# Configuración inicial de la página
 st.set_page_config(page_title="Institutional SAA & Portfolio Platform", layout="wide")
-with st.spinner("Analizando flujos de noticias globales y cruzando impacto con sectores GICS..."):
-    informe_tactico = analizar_impacto_macro_sectorial(api_key)
-    
-st.markdown("### 🌐 Inteligencia Táctica de Mercado & Impacto Sectorial")
-st.markdown(informe_tactico)
-
-
-
 
 st.title("💼 Institutional Strategic Asset Allocation (SAA) & Multi-Sector Platform")
 st.markdown("Comité de Inversiones Autónomo | Optimización Cuantitativa, Análisis Sectorial GICS y Simulación Estocástica.")
 
+# --- BARRA LATERAL CON PARÁMETROS ---
 with st.sidebar:
     st.header("⚙️ Parámetros del Comité")
     capital = st.number_input("Capital Inicial (USD)", min_value=10000.0, value=1000000.0, step=50000.0)
@@ -35,9 +18,8 @@ with st.sidebar:
     
     st.markdown("---")
     st.subheader("📊 Ponderación por Sectores GICS (%)")
-    st.markdown("Define el peso específico para cada sector (Asegúrate de calibrar según convenga):")
+    st.markdown("Define el peso específico para cada sector:")
     
-    # Sliders para los 11 sectores y clases de activos clave
     sec_tech = st.slider("Tecnología (XLK / Semiconductores)", 0, 100, 25)
     sec_staples = st.slider("Consumo Defensivo (XLP)", 0, 100, 10)
     sec_fin = st.slider("Servicios Financieros (XLF)", 0, 100, 15)
@@ -58,21 +40,21 @@ with st.sidebar:
     
     st.metric("Suma Total de Ponderaciones", f"{suma_pesos}%", delta="Debe sumar 100%" if suma_pesos != 100 else "Óptimo")
     
-    restriccion_libre = st.text_area("Condiciones especiales / Tesis (Ej: Enfoque ESG, bonos sostenibles, sobreponderar semiconductores)")
+    restriccion_libre = st.text_area("Condiciones especiales / Tesis (Ej: Enfoque ESG, bonos sostenibles)")
     ejecutar = st.button("🚀 Ejecutar Comité de Inversión SAA", type="primary")
 
+# --- FLUJO DE EJECUCIÓN PRINCIPAL ---
 if ejecutar:
     if suma_pesos != 100:
-        st.warning(f"⚠️ La suma actual de los pesos es {suma_pesos}%. Para mayor precisión analítica, se recomienda ajustar los cursores para que sumen exactamente 100%. Se procederá a normalizar de forma proporcional.")
+        st.warning(f"⚠️ La suma actual de los pesos es {suma_pesos}%. Se procederá a normalizar de forma proporcional.")
     
     with st.spinner("Analizando flujos de noticias globales y cruzando impacto con sectores GICS..."):
-        # Obtenemos la API key de los secretos de Streamlit o del entorno
         api_key = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY", "")
         
-        # Ejecutamos el análisis sintáctico e impacto macro sectorial
+        # Análisis táctico vía LLM
         informe_tactico = analizar_impacto_macro_sectorial(api_key)
         
-        # Diccionario con los pesos ingresados por los selectores GICS
+        # Pesos ingresados
         pesos_usuario = {
             "Tecnología (Information Technology)": sec_tech,
             "Consumo Defensivo (Consumer Staples)": sec_staples,
@@ -89,38 +71,34 @@ if ejecutar:
             "Cash / Equivalentes": cash_eq
         }
         
+        if suma_pesos > 0 and suma_pesos != 100:
+            factor = 100.0 / suma_pesos
+            pesos_usuario = {k: round(v * factor, 2) for k, v in pesos_usuario.items()}
+            
         metricas, excel_file = ejecutar_motor_cuantitativo(pesos_usuario, capital, horizonte)
         
         st.success("✅ Análisis cuantitativo institucional generado con éxito.")
         
-        # Renderizado del Informe Táctico generado por IA
+        # 1. Inteligencia Táctica
         st.markdown("### 🌐 Inteligencia Táctica de Mercado & Impacto Sectorial GICS")
         st.markdown(informe_tactico)
         
-        # Tarjetas Ejecutivas de Rendimiento
+        # 2. Tarjetas Ejecutivas
+        st.markdown("### 📈 Métricas Clave de Rendimiento")
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Patrimonio Gestionado", f"${capital:,.2f}")
         c2.metric("Retorno Anualizado Est.", metricas["Retorno Anualizado Esperado"])
         c3.metric("Volatilidad Anualizada", metricas["Volatilidad Anualizada"])
         c4.metric("Ratio Sharpe (Rf=4%)", metricas["Sharpe Ratio (Rf=4%)"])
         
+        # 3. Escenarios Estocásticos
         st.markdown("### 📊 Proyección Estocástica de Cartera a 12 Meses (Monte Carlo)")
         sc1, sc2, sc3 = st.columns(3)
         sc1.error(f"**Escenario de Estrés (P10)**\n\n${metricas['Escenario Peor (P10 - Estrés)']:,.2f}")
         sc2.warning(f"**Escenario Mediano / Normal (P50)**\n\n${metricas['Escenario Normal (P50 - Mediana)']:,.2f}")
         sc3.success(f"**Escenario Expansivo (P90)**\n\n${metricas['Escenario Mejor (P90 - Expansión)']:,.2f}")
         
-        st.markdown("### 🧠 Tesis de Inversión y Asignación Sectorial Recomendada")
-        st.markdown("""
-        * **Tecnología & Semiconductores:** Exposición clave en líderes de infraestructura de Inteligencia Artificial (NVIDIA, TSMC, Broadcom), equilibrando el crecimiento estructural con valoración ajustada a múltiplos de flujo de caja libre.
-        * **Consumo Defensivo & Healthcare:** Sectores de alta resiliencia y flujos de caja estables, ideales para mitigar la volatilidad macroeconómica y asegurar cobertura frente a ciclos de contracción.
-        * **Servicios Financieros & Energía:** Asignación táctica orientada a captura de dividendos atractivos y protección contra presiones inflacionarias sostenidas.
-        """)
-        
-        st.markdown("### 📰 Inteligencia Táctica de Mercado (Recientes)")
-        for n in noticias:
-            st.info(n)
-            
+        # 4. Botón de Descarga Excel
         st.markdown("---")
         st.download_button(
             label="📥 Descargar Reporte Patrimonial en Excel (Multi-pestaña Profesional)",
@@ -129,4 +107,4 @@ if ejecutar:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 else:
-    st.info("👈 Configura la ponderación sectorial y el capital en la barra lateral y presiona **'Ejecutar Comité de Inversión SAA'**.")
+    st.info("👈 Configura la ponderación sectorial y el capital en la barra lateral y presiona **'Ejecutar Comité de Inversión SAA'** para iniciar el análisis.")
