@@ -65,10 +65,14 @@ if ejecutar:
     if suma_pesos != 100:
         st.warning(f"⚠️ La suma actual de los pesos es {suma_pesos}%. Para mayor precisión analítica, se recomienda ajustar los cursores para que sumen exactamente 100%. Se procederá a normalizar de forma proporcional.")
     
-    with st.spinner("Ejecutando motores cuantitativos, extrayendo flujos de mercado y modelando escenarios..."):
-        noticias = obtener_noticias_mercado()
+    with st.spinner("Analizando flujos de noticias globales y cruzando impacto con sectores GICS..."):
+        # Obtenemos la API key de los secretos de Streamlit o del entorno
+        api_key = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY", "")
         
-        # Diccionario estructurado con los pesos ingresados
+        # Ejecutamos el análisis sintáctico e impacto macro sectorial
+        informe_tactico = analizar_impacto_macro_sectorial(api_key)
+        
+        # Diccionario con los pesos ingresados por los selectores GICS
         pesos_usuario = {
             "Tecnología (Information Technology)": sec_tech,
             "Consumo Defensivo (Consumer Staples)": sec_staples,
@@ -85,14 +89,13 @@ if ejecutar:
             "Cash / Equivalentes": cash_eq
         }
         
-        # Normalizar a 100 si difiere
-        if suma_pesos > 0 and suma_pesos != 100:
-            factor = 100.0 / suma_pesos
-            pesos_usuario = {k: round(v * factor, 2) for k, v in pesos_usuario.items()}
-            
         metricas, excel_file = ejecutar_motor_cuantitativo(pesos_usuario, capital, horizonte)
         
         st.success("✅ Análisis cuantitativo institucional generado con éxito.")
+        
+        # Renderizado del Informe Táctico generado por IA
+        st.markdown("### 🌐 Inteligencia Táctica de Mercado & Impacto Sectorial GICS")
+        st.markdown(informe_tactico)
         
         # Tarjetas Ejecutivas de Rendimiento
         c1, c2, c3, c4 = st.columns(4)
