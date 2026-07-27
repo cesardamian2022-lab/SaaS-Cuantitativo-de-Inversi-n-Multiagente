@@ -1,6 +1,6 @@
 import streamlit as st
 from quant_engine import ejecutar_motor_cuantitativo
-from news_scraper import obtener_noticias_mercado
+
 
 
 # Dentro de tu app.py cuando el usuario presiona ejecutar:
