@@ -2,6 +2,20 @@ import streamlit as st
 from quant_engine import ejecutar_motor_cuantitativo
 from news_scraper import obtener_noticias_mercado
 
+
+# Dentro de tu app.py cuando el usuario presiona ejecutar:
+from news_analyzer import analizar_impacto_macro_sectorial
+
+# Obtención de la clave
+api_key = os.getenv("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY", "")
+
+with st.spinner("Analizando flujos de noticias globales y cruzando impacto con sectores GICS..."):
+    informe_tactico = analizar_impacto_macro_sectorial(api_key)
+    
+st.markdown("### 🌐 Inteligencia Táctica de Mercado & Impacto Sectorial")
+st.markdown(informe_tactico)
+
+
 st.set_page_config(page_title="Institutional SAA & Portfolio Platform", layout="wide")
 
 st.title("💼 Institutional Strategic Asset Allocation (SAA) & Multi-Sector Platform")
