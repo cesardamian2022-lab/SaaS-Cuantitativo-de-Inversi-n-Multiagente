@@ -2,65 +2,108 @@ import streamlit as st
 from quant_engine import ejecutar_motor_cuantitativo
 from news_scraper import obtener_noticias_mercado
 
-st.set_page_config(page_title="Quantitative SAA Platform", layout="wide")
+st.set_page_config(page_title="Institutional SAA & Portfolio Platform", layout="wide")
 
-st.title("💼 Quantitative Strategic Asset Allocation (SAA) Platform")
-st.markdown("Sistema institucional para optimización de portafolios, simulación de escenarios y control patrimonial.")
+st.title("💼 Institutional Strategic Asset Allocation (SAA) & Multi-Sector Platform")
+st.markdown("Comité de Inversiones Autónomo | Optimización Cuantitativa, Análisis Sectorial GICS y Simulación Estocástica.")
 
-# --- BARRA LATERAL CON PARÁMETROS AVANZADOS ---
 with st.sidebar:
-    st.header("Parámetros del Comité")
+    st.header("⚙️ Parámetros del Comité")
     capital = st.number_input("Capital Inicial (USD)", min_value=10000.0, value=1000000.0, step=50000.0)
     horizonte = st.selectbox("Horizonte Temporal (Años)", [1, 3, 5, 10])
-    perfil = st.selectbox("Perfil de Riesgo", ["Conservador", "Moderado", "Agresivo", "Dinámico"])
+    perfil = st.selectbox("Perfil de Riesgo Base", ["Conservador", "Moderado", "Agresivo", "Dinámico"])
     
     st.markdown("---")
-    st.subheader("Restricciones Personalizadas (Opcional)")
-    sesgo_tech = st.slider("Sesgo Sector Tecnología", 0.0, 0.5, 0.2)
-    sesgo_consumo = st.slider("Sesgo Consumo Básico (Defensivo)", 0.0, 0.5, 0.2)
-    restriccion_libre = st.text_area("Condiciones especiales (Ej: Bonos sostenibles ESG, mercados emergentes)")
+    st.subheader("📊 Ponderación por Sectores GICS (%)")
+    st.markdown("Define el peso específico para cada sector (Asegúrate de calibrar según convenga):")
+    
+    # Sliders para los 11 sectores y clases de activos clave
+    sec_tech = st.slider("Tecnología (XLK / Semiconductores)", 0, 100, 25)
+    sec_staples = st.slider("Consumo Defensivo (XLP)", 0, 100, 10)
+    sec_fin = st.slider("Servicios Financieros (XLF)", 0, 100, 15)
+    sec_health = st.slider("Healthcare / Salud (XLV)", 0, 100, 10)
+    sec_ind = st.slider("Industrial (XLI)", 0, 100, 5)
+    sec_cons = st.slider("Consumo Cíclico (XLY)", 0, 100, 5)
+    sec_energy = st.slider("Energía (XLE)", 0, 100, 5)
+    sec_util = st.slider("Utilities / Servicios Públicos (XLU)", 0, 100, 5)
+    sec_re = st.slider("Bienes Raíces / Real Estate (VNQ)", 0, 100, 5)
+    sec_comm = st.slider("Servicios de Comunicación (XLC)", 0, 100, 5)
+    sec_mat = st.slider("Materiales Básicos (XLB)", 0, 100, 5)
+    rf_global = st.slider("Renta Fija Global / Bonos (AGG)", 0, 100, 10)
+    cash_eq = st.slider("Cash / Equivalentes / Depósitos", 0, 100, 5)
 
-    ejecutar = st.button("Ejecutar Análisis y Simulación SAA", type="primary")
+    suma_pesos = (sec_tech + sec_staples + sec_fin + sec_health + sec_ind + 
+                  sec_cons + sec_energy + sec_util + sec_re + sec_comm + 
+                  sec_mat + rf_global + cash_eq)
+    
+    st.metric("Suma Total de Ponderaciones", f"{suma_pesos}%", delta="Debe sumar 100%" if suma_pesos != 100 else "Óptimo")
+    
+    restriccion_libre = st.text_area("Condiciones especiales / Tesis (Ej: Enfoque ESG, bonos sostenibles, sobreponderar semiconductores)")
+    ejecutar = st.button("🚀 Ejecutar Comité de Inversión SAA", type="primary")
 
 if ejecutar:
-    with st.spinner("Analizando fuentes de mercado (Bloomberg, Finviz, TradingEconomics) y ejecutando motor cuantitativo..."):
+    if suma_pesos != 100:
+        st.warning(f"⚠️ La suma actual de los pesos es {suma_pesos}%. Para mayor precisión analítica, se recomienda ajustar los cursores para que sumen exactamente 100%. Se procederá a normalizar de forma proporcional.")
+    
+    with st.spinner("Ejecutando motores cuantitativos, extrayendo flujos de mercado y modelando escenarios..."):
         noticias = obtener_noticias_mercado()
         
-        # Pesos base según perfil con ajustes de restricciones
-        if perfil == "Conservador":
-            pesos = {"Renta Fija Global": 65, "Cash / Ahorro": 25, "Renta Variable Global": 10}
-        elif perfil == "Moderado":
-            pesos = {"Renta Fija Global": 45, "Renta Variable Global": 40, "Real Estate / Infra": 10, "Cash / Ahorro": 5}
-        else:
-            pesos = {"Renta Variable Global": 60, "Alternativos / Commodities": 20, "Renta Fija Global": 20}
+        # Diccionario estructurado con los pesos ingresados
+        pesos_usuario = {
+            "Tecnología (Information Technology)": sec_tech,
+            "Consumo Defensivo (Consumer Staples)": sec_staples,
+            "Servicios Financieros (Financials)": sec_fin,
+            "Healthcare (Salud)": sec_health,
+            "Industrial (Industrials)": sec_ind,
+            "Consumo Cíclico (Consumer Discretionary)": sec_cons,
+            "Energía (Energy)": sec_energy,
+            "Utilities (Servicios Públicos)": sec_util,
+            "Bienes Raíces (Real Estate)": sec_re,
+            "Servicios de Comunicación": sec_comm,
+            "Materiales Básicos": sec_mat,
+            "Renta Fija Global (Agg)": rf_global,
+            "Cash / Equivalentes": cash_eq
+        }
+        
+        # Normalizar a 100 si difiere
+        if suma_pesos > 0 and suma_pesos != 100:
+            factor = 100.0 / suma_pesos
+            pesos_usuario = {k: round(v * factor, 2) for k, v in pesos_usuario.items()}
             
-        metricas, excel_file = ejecutar_motor_cuantitativo(pesos, capital, horizonte)
+        metricas, excel_file = ejecutar_motor_cuantitativo(pesos_usuario, capital, horizonte)
         
-        st.success("¡Análisis cuantitativo completado con éxito!")
+        st.success("✅ Análisis cuantitativo institucional generado con éxito.")
         
-        # Visualización en Tarjetas (Métricas Clave)
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Capital Inicial", f"${capital:,.2f}")
-        col2.metric("Retorno Esperado", metricas["Retorno Anualizado Esperado"])
-        col3.metric("Volatilidad Anual", metricas["Volatilidad Anualizada"])
-        col4.metric("Ratio Sharpe", metricas["Sharpe Ratio (Rf=4%)"])
+        # Tarjetas Ejecutivas de Rendimiento
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Patrimonio Gestionado", f"${capital:,.2f}")
+        c2.metric("Retorno Anualizado Est.", metricas["Retorno Anualizado Esperado"])
+        c3.metric("Volatilidad Anualizada", metricas["Volatilidad Anualizada"])
+        c4.metric("Ratio Sharpe (Rf=4%)", metricas["Sharpe Ratio (Rf=4%)"])
         
-        st.markdown("### 📈 Proyección de Escenarios a 12 Meses (Monte Carlo)")
+        st.markdown("### 📊 Proyección Estocástica de Cartera a 12 Meses (Monte Carlo)")
         sc1, sc2, sc3 = st.columns(3)
-        sc1.error(f"**Escenario Peor (P10)**\n\n${metricas['Escenario Peor (P10 - Estrés)']:,.2f}")
-        sc2.warning(f"**Escenario Normal (P50)**\n\n${metricas['Escenario Normal (P50 - Mediana)']:,.2f}")
-        sc3.success(f"**Escenario Mejor (P90)**\n\n${metricas['Escenario Mejor (P90 - Expansión)']:,.2f}")
+        sc1.error(f"**Escenario de Estrés (P10)**\n\n${metricas['Escenario Peor (P10 - Estrés)']:,.2f}")
+        sc2.warning(f"**Escenario Mediano / Normal (P50)**\n\n${metricas['Escenario Normal (P50 - Mediana)']:,.2f}")
+        sc3.success(f"**Escenario Expansivo (P90)**\n\n${metricas['Escenario Mejor (P90 - Expansión)']:,.2f}")
         
-        st.markdown("### 📰 Inteligencia de Mercado Reciente (Scraping Activo)")
+        st.markdown("### 🧠 Tesis de Inversión y Asignación Sectorial Recomendada")
+        st.markdown("""
+        * **Tecnología & Semiconductores:** Exposición clave en líderes de infraestructura de Inteligencia Artificial (NVIDIA, TSMC, Broadcom), equilibrando el crecimiento estructural con valoración ajustada a múltiplos de flujo de caja libre.
+        * **Consumo Defensivo & Healthcare:** Sectores de alta resiliencia y flujos de caja estables, ideales para mitigar la volatilidad macroeconómica y asegurar cobertura frente a ciclos de contracción.
+        * **Servicios Financieros & Energía:** Asignación táctica orientada a captura de dividendos atractivos y protección contra presiones inflacionarias sostenidas.
+        """)
+        
+        st.markdown("### 📰 Inteligencia Táctica de Mercado (Recientes)")
         for n in noticias:
             st.info(n)
             
         st.markdown("---")
         st.download_button(
-            label="📥 Descargar Reporte Completo en Excel (Multi-pestaña)",
+            label="📥 Descargar Reporte Patrimonial en Excel (Multi-pestaña Profesional)",
             data=excel_file,
-            file_name="Reporte_SAA_Institucional.xlsx",
+            file_name="Reporte_SAA_Institucional_GICS.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 else:
-    st.info("Configura los parámetros en la barra lateral y haz clic en **'Ejecutar Análisis y Simulación SAA'** para iniciar el motor institucional.")
+    st.info("👈 Configura la ponderación sectorial y el capital en la barra lateral y presiona **'Ejecutar Comité de Inversión SAA'**.")
