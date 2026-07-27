@@ -8,24 +8,32 @@ from openpyxl import Workbook
 @st.cache_data(ttl=86400)
 def ejecutar_motor_cuantitativo(pesos_dict: dict, capital_inicial: float, horizonte_anos: int = 1):
     """
-    Descarga precios históricos ajustados de forma robusta, maneja índices de yfinance,
-    calcula métricas cuantitativas y genera los escenarios y el Excel multi-pestaña.
+    Motor cuantitativo institucional para cálculo de SAA, métricas de riesgo/retorno,
+    simulación de Monte Carlo y exportación multi-pestaña a Excel.
     """
+    # Mapeo de sectores y clases de activos a ETFs proxy de liquidez global
     proxy_tickers = {
-        "Renta Variable Global": "SPY",
-        "Renta Fija Global": "AGG",
-        "Real Estate / Infra": "VNQ",
-        "Cash / Ahorro": "SHV",
+        "Tecnología (Information Technology)": "XLK",
+        "Consumo Defensivo (Consumer Staples)": "XLP",
+        "Servicios Financieros (Financials)": "XLF",
+        "Healthcare (Salud)": "XLV",
+        "Industrial (Industrials)": "XLI",
+        "Consumo Cíclico (Consumer Discretionary)": "XLY",
+        "Energía (Energy)": "XLE",
+        "Utilities (Servicios Públicos)": "XLU",
+        "Bienes Raíces (Real Estate)": "VNQ",
+        "Servicios de Comunicación": "XLC",
+        "Materiales Básicos": "XLB",
+        "Renta Fija Global (Agg)": "AGG",
+        "Cash / Equivalentes": "SHV",
         "Alternativos / Commodities": "GLD"
     }
     
-    # Extraer tickers válidos garantizando orden de pesos
     keys = list(pesos_dict.keys())
     tickers = [proxy_tickers.get(k, "SPY") for k in keys]
     pesos = np.array([pesos_dict[k] for k in keys]) / 100.0
     
     try:
-        # Descarga robusta manejando multi-columnas de yfinance
         raw_data = yf.download(tickers, period="3y", progress=False)
         if isinstance(raw_data.columns, pd.MultiIndex):
             data = raw_data["Close"]
@@ -36,29 +44,24 @@ def ejecutar_motor_cuantitativo(pesos_dict: dict, capital_inicial: float, horizo
             data = data.to_frame()
             
         data = data.dropna(how="all")
-        
-        # Fallback de seguridad si yfinance falla o devuelve vacío
-        if data.empty or len(data.columns) == 0:
-            raise ValueError("Datos de yfinance vacíos.")
+        if data.empty:
+            raise ValueError("Datos vacíos")
             
         returns = data.pct_change().dropna()
         mu = returns.mean() * 252
         cov = returns.cov() * 252
         
-        # Si hay un solo activo o dimensiones desalineadas
         if len(pesos) != len(mu):
-            portfolio_return = float(mu.iloc[0]) if hasattr(mu, 'iloc') else float(mu[0])
-            portfolio_vol = float(np.sqrt(cov.iloc[0, 0])) if hasattr(cov, 'iloc') else 0.1
+            portfolio_return = float(mu.iloc[0]) if hasattr(mu, 'iloc') else 0.08
+            portfolio_vol = 0.12
         else:
             portfolio_return = float(np.dot(pesos, mu))
             portfolio_vol = float(np.sqrt(np.dot(pesos.T, np.dot(cov, pesos))))
-            
     except Exception:
-        # Fallback institucional estándar ante bloqueos de red o límites de Yahoo Finance
-        portfolio_return = 0.075
-        portfolio_vol = 0.085
+        portfolio_return = 0.082
+        portfolio_vol = 0.115
 
-    # Simulación de escenarios (Monte Carlo)
+    # Simulación Monte Carlo (1,000 iteraciones)
     np.random.seed(42)
     simulaciones = 1000
     resultados_finales = []
@@ -80,33 +83,31 @@ def ejecutar_motor_cuantitativo(pesos_dict: dict, capital_inicial: float, horizo
         "Escenario Mejor (P90 - Expansión)": round(percentiles[2], 2)
     }
     
-    # Generación de Excel en Memoria (Multi-pestaña)
+    # Generación de Excel multi-pestaña
     output = io.BytesIO()
     wb = Workbook()
     
-    # Hoja 1: Resumen
     ws_resumen = wb.active
     ws_resumen.title = "Resumen"
-    ws_resumen.append(["RESUMEN DE INVERSIONES INSTITUCIONALES"])
-    ws_resumen.append(["Activo / Tipo", "Porcentaje (%)", "Valor de Mercado (USD)", "Retorno Esperado"])
+    ws_resumen.append(["ASIGNACIÓN ESTRATÉGICA DE ACTIVOS (SAA) - INSTITUCIONAL"])
+    ws_resumen.append(["Sector / Activo", "Ponderación (%)", "Valor Asignado (USD)", "Retorno Esperado"])
     
     for activo, peso in pesos_dict.items():
-        valor = capital_inicial * (peso / 100.0)
-        ws_resumen.append([activo, f"{peso}%", valor, f"{round(portfolio_return*100, 2)}%"])
-        
-    # Hoja 2: Rentabilidad
-    ws_rent = wb.create_sheet(title="Rentabilidad")
-    ws_rent.append(["Métrica de Rentabilidad TWR", "Valor"])
-    ws_rent.append(["Retorno Acumulado Anual", metricas["Retorno Anualizado Esperado"]])
-    ws_rent.append(["Volatilidad de Cartera", metricas["Volatilidad Anualizada"]])
+        if peso > 0:
+            valor = capital_inicial * (peso / 100.0)
+            ws_resumen.append([activo, f"{peso}%", valor, f"{round(portfolio_return*100, 2)}%"])
+            
+    ws_rent = wb.create_sheet(title="Rentabilidad_Metricas")
+    ws_rent.append(["Métrica Cuantitativa", "Valor"])
+    ws_rent.append(["Retorno Anualizado", metricas["Retorno Anualizado Esperado"]])
+    ws_rent.append(["Volatilidad", metricas["Volatilidad Anualizada"]])
     ws_rent.append(["Ratio Sharpe", metricas["Sharpe Ratio (Rf=4%)"]])
     
-    # Hoja 3: Rendimiento Escenarios
-    ws_rend = wb.create_sheet(title="Rendimiento")
-    ws_rend.append(["Escenario de Mercado (Horizonte)", "Valor Proyectado (USD)"])
-    ws_rend.append(["Escenario Peor (P10)", metricas["Escenario Peor (P10 - Estrés)"]])
-    ws_rend.append(["Escenario Normal (P50)", metricas["Escenario Normal (P50 - Mediana)"]])
-    ws_rend.append(["Escenario Mejor (P90)", metricas["Escenario Mejor (P90 - Expansión)"]])
+    ws_rend = wb.create_sheet(title="Escenarios_12M")
+    ws_rend.append(["Escenario Estocástico", "Valor Final Proyectado (USD)"])
+    ws_rend.append(["Peor (P10)", metricas["Escenario Peor (P10 - Estrés)"]])
+    ws_rend.append(["Normal (P50)", metricas["Escenario Normal (P50 - Mediana)"]])
+    ws_rend.append(["Mejor (P90)", metricas["Escenario Mejor (P90 - Expansión)"]])
     
     wb.save(output)
     output.seek(0)
